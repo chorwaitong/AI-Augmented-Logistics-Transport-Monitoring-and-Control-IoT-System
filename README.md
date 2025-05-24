@@ -14,8 +14,11 @@ Please note that this serves as a display of concept, the functionality (e.g., s
 
 ## Repository Structure
 ├── arduino/ # Arduino firmware for sensor data acquisition and NFC authentication
+
 ├── python/ # Flask–SocketIO backend server code
+
 ├── LICENSE # MIT License
+
 └── README.md # Project documentation
 
 ## Getting Started
