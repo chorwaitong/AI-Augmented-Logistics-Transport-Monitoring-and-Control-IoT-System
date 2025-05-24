@@ -4,6 +4,10 @@ This project presents a proof-of-concept (POC) for a modular, web-based logistic
 
 Please note that this serves as a display of concept, the functionality (e.g., security) are not meant to be production-ready. 
 
+Watch a simple demo in Youtube:
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/hiIWA73AVaU/0.jpg)](https://www.youtube.com/watch?v=hiIWA73AVaU&ab_channel=ChorWT)
+
 ## System Architecture and features.
 
 - **IoT Sensing**: Utilizes Arduino-based sensors to monitor temperature and humidity within transport vehicles.
