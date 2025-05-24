@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logistics Vehicle Monitoring</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+    <style>
+        body {
+            height: 100vh; /* Full viewport height */
+            width: 100vw;  /* Full viewport width */
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #eef2f7; /* Lighter, professional background */
+            color: #333;
+
+             /* --- Background Image --- */
+            background-image: url("/static/images/bg_image.jpg"); /* Replace with your image file name */
+            background-size: cover; /* Cover the entire viewport */
+            background-position: center center; /* Center the image */
+            background-repeat: no-repeat; /* Do not repeat the image */
+            background-attachment: fixed; /* Keep the background fixed during scroll */
+            background-color: #eef2f7; /* Fallback color if the image doesn't load */
+
+        }
+
+        /* --- Toggle Control Button Styling --- */
+        .control-button-group {
+            display: flex;
+            justify-content: space-around; 
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .control-button {
+            width: 75px; 
+            height: 75px; 
+            border-radius: 50%; 
+            border: 1px solid #ddd; /* Default border */
+            background-color: #f8f9fa; /* Light default background */
+            color: #555; /* Default icon color */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem; /* Icon size */
+            cursor: pointer;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+            outline: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .control-button:hover:not(.active):not(:disabled) {
+            background-color: #e9ecef;
+            border-color: #ccc;
+        }
+        .control-button.active.cool { background-color: #007bff; border-color: #0056b3; color: white; }
+        .control-button.active.heat { background-color: #dc3545; border-color: #b02a37; color: white; }
+        .control-button.active.dehumidify { background-color: #17a2b8; border-color: #117a8b; color: white; }
+        .control-button.active.humidify { background-color: #6c757d; border-color: #545b62; color: white; }
+
+        .control-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: #e9ecef;
+        }
+
+        .autoaicontrols{
+            min-width: 100px;
+            min-height: 75px;
+            font-size: 1.38em;
+            line-height: 75px
+        }
+
+        /* --- Login Modal Styles --- */
+        .login-modal-overlay {
+            position: fixed; 
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(44, 62, 80, 0.85); /* Dark semi-transparent overlay */
+            backdrop-filter: blur(5px); 
+            -webkit-backdrop-filter: blur(8px); /* For Safari support */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1050; 
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.5s ease-out, visibility 0s linear 0s; /* Fade out transition */
+        }
+
+        .login-modal-content{
+            background-color: #ffffff;
+            padding: 30px 50px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            max-width: 450px; 
+            transform: scale(1);
+            transition: transform 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28); /* Scale transition */
+            color: #3498db !important; 
+        }
+
+        /* Style the Bootstrap spinner specifically for the login modal */
+        .login-modal-content .spinner-border { 
+                width: 2.5rem;
+                height: 2.5rem;
+                color: #3498db !important; 
+        }
+
+
+        .login-modal-title {
+            color: #2c3e50;
+            font-size: 1.5rem; 
+            font-weight: 600;
+            margin-bottom: 25px; /* Space below title */
+        }
+
+        /* Adjust spacing for the icon */
+        .login-icon {
+            font-size: 3.5rem; 
+            color: #3498db; 
+            margin-bottom: 15px; 
+            transition: color 0.3s ease, transform 0.4s ease;
+        }
+
+        .login-modal-content h4 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .login-modal-content p {
+            color: #555;
+            margin-bottom: 25px;
+            font-size: 0.95rem;
+        }
+
+        /* --- Unlock Animation States --- */
+        .login-modal-overlay.unlocking {
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease-in, visibility 0s linear 0.5s; /* Delay visibility change */
+        }
+
+        .login-modal-overlay.unlocking .login-modal-content {
+                transform: scale(0.8); /* Shrink effect */
+        }
+
+        .login-modal-overlay.unlocking .login-icon {
+            color: #28a745; /* Change to green */
+            transform: rotate(15deg) scale(1.1); /* Slight rotation and scale up */
+        }
+
+        /* Class to hide the modal completely after animation */
+        .login-modal-hidden {
+            display: none !important;
+        }
+        
+        .container {
+            max-width: 100%;
+            height: 100%;
+            padding: 15px; /* Reduced padding */
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box; 
+        }
+
+        .dashboard-title {
+            color: #2c3e50; /* Dark blue-grey */
+            margin-bottom: 5px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 1.6rem;
+        }
+
+        .vehicle-id {
+            text-align: center;
+            color: #555;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .data-card {
+            background-color: rgba(255, 255, 255, 0.85); /* White with 85% opacity */            
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.07);
+            padding: 15px;
+            height: 100%; /* Make cards in a row equal height */
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(5px); /* Apply blur to content behind the card */
+            -webkit-backdrop-filter: blur(5px); /* For Safari support */
+            overflow:hidden;
+        }
+
+        .data-card h5 {
+            font-size: 1rem;
+            color: #3498db; /* Accent blue */
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #ecf0f1;
+            padding-bottom: 10px;
+        }
+
+        .data-card h5 i {
+            margin-right: 8px;
+            font-size: 1.1em;
+            width: 25px; /* Align icons */
+            text-align: center;
+        }
+
+        .current-value {
+            font-size: 1.7rem;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .chart-container {
+            flex-grow: 1;
+            position: relative;
+            min-height: 100px; /* Ensure chart visibility */
+        }
+
+        .last-updated {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            margin-top: auto;
+            padding-top: 5px;
+            text-align: right;
+        }
+
+        .nfc-log-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+            font-size: 0.8rem;
+        }
+
+        .nfc-log-list li {
+            padding: 4px 0;
+            border-bottom: 1px solid #ecf0f1;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .nfc-log-list li:last-child {
+            border-bottom: none;
+        }
+        .nfc-log-list .timestamp {
+            font-size: 0.8em;
+            color: #777;
+            margin-right: 10px;
+        }
+        .nfc-log-list .driver-id {
+            font-weight: 500;
+            word-break: break-all; /* Handle long IDs */
+        }
+        .nfc-log-list .status-icon {
+            margin-left: 10px;
+            font-size: 1.1em; /* Slightly larger status icon */
+        }
+        /* Consistent color usage */
+        .text-success { color: #28a745 !important; }
+        .text-danger { color: #dc3545 !important; }
+        .text-muted { color: #6c757d !important; }
+
+
+        /* Access Status Styling */
+        .access-status-card .status-icon-display { /* Renamed class */
+            font-size: 3.5rem;
+            margin-bottom: 15px;
+            transition: color 0.3s ease;
+        }
+        .access-status-card .status-text {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+            transition: color 0.3s ease;
+        }
+        .access-status-card .status-detail {
+            font-size: 0.9rem;
+            color: #555;
+            min-height: 1.2em; /* Prevent layout shift */
+        }
+
+        /* Status Colors Classes */
+        .status-locked { color: #6c757d; } /* Grey */
+        .status-granted { color: #28a745; } /* Green */
+        .status-denied { color: #dc3545; } /* Red */
+
+        /* Knob Control Styles */
+        .knob-control-container {
+            text-align: center;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* Center content vertically */
+            align-items: center;
+        }
+        .knob {
+            width: 180px; /* Smaller knob */
+            height: 180px;
+            background-color: #e0e0e0;
+            border-radius: 50%;
+            position: relative;
+            border: 2px solid #b0b0b0;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.1);
+            flex-shrink: 0; /* Prevent knob from shrinking too much */
+        }
+        .knob-pointer {
+            width: 18px; /* Thinner pointer */
+            height: 88px; /* Shorter pointer, relative to knob center */
+            background-color: #333;
+            position: absolute;
+            bottom: 50%; /* Start from center */
+            left: 50%;
+            transform-origin: 50% 100%; /* Rotate around its bottom center */
+            transform: translateX(-50%) rotate(0deg);
+            border-radius: 4px 4px 0 0;
+        }
+        .knob-labels { font-size: 0.75rem; color: #555; margin-top: 5px; }
+        .knob-labels div { margin-bottom: 2px; }
+        .knob-control-container .form-range { padding: 0; height: 0.8rem; }
+        .knob-control-container .form-label { font-size: 0.75rem; margin-bottom: 0.1rem; }
+    
+
+    </style>
+</head>
+<body>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="login-modal-overlay">
+        <div class="login-modal-content">
+            <!-- Moved Title Here -->
+            <h2 class="login-modal-title">Logistics Vehicle Monitoring</h2>
+            <!-- End Moved Title -->
+
+            <div id="loginIcon" class="login-icon">
+                <i class="fas fa-lock"></i> <!-- Lock Icon -->
+            </div>
+            <h4 id="loginStatusText">Awaiting Driver Scan</h4>
+            <p>Please scan your authorized NFC tag to unlock the dashboard.</p>
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+    <!-- End Login Modal -->
+    
+
+    <div class="container">
+        <h2 class="dashboard-title">Logistics Vehicle Monitoring</h2>
+        <p class="vehicle-id">Vehicle ID: TRUCK-042</p> <!-- Example Vehicle ID -->
+
+        <div class="row">
+            <!-- Sensor Data Column -->
+            <div class="col-lg-7">
+                <div class="row">
+                    <!-- Temperature Card -->
+                    <div class="col-md-6">
+                        <div class="data-card">
+                            <h5><i class="fas fa-thermometer-half"></i>Storage Temp</h5>
+                            <div class="current-value">
+                                <span id="currentTemp">--</span>°C
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="tempChart"></canvas>
+                            </div>
+                            <div id="tempUpdated" class="last-updated">Last Updated: N/A</div>
+                        </div>
+                    </div>
+
+                    <!-- Humidity Card -->
+                    <div class="col-md-6">
+                        <div class="data-card">
+                            <h5><i class="fas fa-tint"></i>Storage Humidity</h5>
+                            <div class="current-value">
+                                <span id="currentHum">--</span>%
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="humChart"></canvas>
+                            </div>
+                            <div id="humUpdated" class="last-updated">Last Updated: N/A</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Access & Log Column -->
+            <div class="col-lg-5">
+                <!-- NFC Scan Log Card -->
+                <div class="data-card">
+                    <h5><i class="fas fa-history"></i>Driver Scan Log</h5>
+                    <ul id="nfcList" class="nfc-log-list">
+                        <li style="justify-content: center; color: #777;">Waiting for scans...</li>
+                    </ul>
+                </div>
+            </div>
+        </div> <!-- /row -->
+
+        <!-- New Row for AI Control -->
+        <div class="row" style="margin-top:15px">
+            <div class="col-lg-8">
+                <div class="data-card">
+                    <h5><i class="fas fa-brain"></i> Environment Control</h5>
+
+                    <div class="mb-3">
+                        <label for="goodsTypeInput" class="form-label">Type of Goods in Transport:</label>
+                        <input type="text" class="form-control" id="goodsTypeInput" placeholder="e.g., Pharmaceuticals, Fresh Produce">
+                    </div>
+                    <div class="d-flex align-items-center mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-info autoaicontrols" id="getAiRecommendationBtn">
+                            <i class="fas fa-lightbulb me-1"></i>Get AI Recommendation
+                        </button>
+
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-2 autoaicontrols" id="requestUpdateBtn">
+                            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" style="display: none;"></span>
+                            Update me
+                        </button>
+
+                        <div class="form-check form-switch me-3" style="margin-left: 20px;">
+                            <input class="form-check-input autoaicontrols" type="checkbox" role="switch" id="aiModeSwitch">
+                            <label class="form-check-label autoaicontrols" for="aiModeSwitch">Enable Auto Control Mode</label>
+                        </div>
+    
+                        
+                    </div>
+                    
+
+                    <div id="manualControlsContainer" class="mt-2">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Temperature Control:</label>
+                                <div class="control-button-group mb-2" role="group" aria-label="Temperature Controls">
+                                    <button type="button" class="control-button cool" id="btnCool" data-action="cool" data-group="temp"><i class="fas fa-temperature-low"></i></button>
+                                    <button type="button" class="control-button heat" id="btnHeat" data-action="heat" data-group="temp"><i class="fas fa-temperature-high"></i></button>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Humidity Control:</label>
+                                <div class="control-button-group" role="group" aria-label="Humidity Controls">
+                                    <button type="button" class="control-button dehumidify" id="btnDehumidify" data-action="dehumidify" data-group="hum"><i class="fas fa-wind"></i></button>
+                                    <button type="button" class="control-button humidify" id="btnHumidify" data-action="humidify" data-group="hum"><i class="fas fa-water"></i></button>
+                                </div>
+                            </div>                          
+
+                        </div>
+                    </div>
+
+                    <div id="aiTargetsDisplay" class="mt-3" style="display: block;">
+                        <h6>AI Recommended Targets:</h6>
+                        <p>Target Temperature: <strong id="aiTargetTemp">--</strong>°C</p>
+                        <p>Target Humidity: <strong id="aiTargetHum">--</strong>%</p>
+                        
+                    </div>
+                </div>                
+            </div>
+
+            <div class="col-lg-4">
+                 <!-- Actuator Control Card (New) -->
+                <div class="data-card flex-fill">
+                    <h5><i class="fas fa-cogs"></i> Actuator Control</h5>
+                    <div class="knob-control-container">
+                        <div class="knob mb-2">
+                            <div class="knob-pointer" id="actuatorKnobPointer"></div>
+                        </div>
+                        <div class="knob-labels">
+                            <div>Angle: <span id="actuatorAngleDisplay">0</span>°</div>
+                        </div>
+                        <small class="text-muted mt-1" style="font-size: 0.7rem;">Drag knob to set angle</small>
+                    </div>
+                </div>
+            </div>
+        </div> <!-- /row for AI Control -->   
+
+       
+    </div> <!-- /container -->
+
+    <script>
+        const socket = io();
+        const voices = speechSynthesis.getVoices();
+        const target_voice_name = "Google US English";
+        var target_voice = voices.find(voice => voice.name === target_voice_name);
+
+        // --- Configuration ---
+        // Permitted IDs are checked on the backend now.
+        const DRIVER_1_UID = '35 33 20 20 33 33 20 20 63 35 20 20 31 20';
+        const AUTO_CLOSE_DELAY_MS = 2000; // 2 seconds (should match backend)
+        const DENIED_STATUS_DISPLAY_MS = 3000; // How long to show "Denied" status
+        const UNLOCK_ANIMATION_DURATION_MS = 500; // Match CSS transition duration
+
+        // Flag to check if the dashboard is unlocked
+        let isUnlocked = false; // Start as locked
+
+        // --- Element References ---
+        const loginModalOverlay = document.getElementById('loginModal'); // Added
+        const loginIcon = document.getElementById('loginIcon');         // Added
+        const loginStatusText = document.getElementById('loginStatusText'); // Added
+        const currentTempElement = document.getElementById('currentTemp');
+        const currentHumElement = document.getElementById('currentHum');
+        const tempUpdatedElement = document.getElementById('tempUpdated');
+        const humUpdatedElement = document.getElementById('humUpdated');
+        const nfcListElement = document.getElementById('nfcList');
+
+        // AI Control Elements
+        const goodsTypeInput = document.getElementById('goodsTypeInput');
+        const aiModeSwitch = document.getElementById('aiModeSwitch');
+        const getAiRecommendationBtn = document.getElementById('getAiRecommendationBtn');
+        const requestUpdateBtn = document.getElementById('requestUpdateBtn'); 
+        const manualControlsContainer = document.getElementById('manualControlsContainer');
+        const btnCool = document.getElementById('btnCool'), btnHeat = document.getElementById('btnHeat'), btnDehumidify = document.getElementById('btnDehumidify'), btnHumidify = document.getElementById('btnHumidify');
+        const allControlButtons = [btnCool, btnHeat, btnDehumidify, btnHumidify];
+        const aiTargetsDisplay = document.getElementById('aiTargetsDisplay'), aiTargetTempElement = document.getElementById('aiTargetTemp'), aiTargetHumElement = document.getElementById('aiTargetHum');
+        var envAIMode = false;
+        var targetTempAI = null, targetHumAI = null;
+        var currentTemp = null, currentHum = null;
+
+        let lastTempActionSent = null; // Track last AI temp action
+        let lastHumActionSent = null;  // Track last AI hum action
+
+        const TEMP_THRESHOLD = 1.0; // Degrees Celsius for AI control hysteresis
+        const HUM_THRESHOLD = 5.0;  // Percentage for AI control hyster
+
+        const actuatorKnobPointer = document.getElementById('actuatorKnobPointer');
+        const actuatorAngleDisplay = document.getElementById('actuatorAngleDisplay');
+        const actuatorKnob = document.querySelector('.knob'); // Get the knob itself
+
+        var timeStart, timeEnd;
+
+        // --- Chart.js Setup ---
+        function createChart(ctx, label, color = 'rgba(52, 152, 219, 1)') {
+            return new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [{ label: label, data: [], borderColor: color, borderWidth: 2, fill: false, tension: 0.1 }] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { x: { display: false }, y: { beginAtZero: false } }, // Y-axis auto-scales unless limits set below
+                    plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0, 0, 0, 0.7)', titleColor: '#fff', bodyColor: '#fff' } }
+                }
+            });
+        }
+
+        const tempChart = createChart(document.getElementById('tempChart').getContext('2d'), 'Temperature', 'rgba(231, 76, 60, 1)');
+        const humChart = createChart(document.getElementById('humChart').getContext('2d'), 'Humidity', 'rgba(52, 152, 219, 1)');
+
+        // Set specific Y-axis limits for typical conditions
+        tempChart.options.scales.y.min = 15; tempChart.options.scales.y.max = 40;
+        humChart.options.scales.y.min = 40; humChart.options.scales.y.max = 100;
+
+
+        function checkAndApplyAIControl() {
+            if (!envAIMode || targetTempAI === null || targetHumAI === null) {
+                return;
+            }
+
+            let desiredTempAction = 'temp_off';
+            // Temperature Control Logic
+            if (currentTemp === null || isNaN(parseFloat(currentTemp))) { // Invalid temp
+                desiredTempAction = 'cool'; // Default to cooling
+            } else if (currentTemp > targetTempAI + TEMP_THRESHOLD) {
+                desiredTempAction = 'cool';
+            } else if (currentTemp < targetTempAI - TEMP_THRESHOLD) {
+                desiredTempAction = 'heat';
+            }
+
+            if (desiredTempAction !== lastTempActionSent) {
+                socket.emit('auto_control', { action: desiredTempAction });
+                lastTempActionSent = desiredTempAction;
+                console.log(`Auto Temp Control Action: ${desiredTempAction}`);
+                btnCool.classList.toggle('active', desiredTempAction === 'cool');
+                btnHeat.classList.toggle('active', desiredTempAction === 'heat');
+            }
+
+            let desiredHumAction = 'hum_off';
+            // Humidity Control Logic
+            if (currentHum === null || isNaN(parseFloat(currentHum))) { // Invalid AI target hum
+                desiredHumAction = 'dehumidify'; // Default to dehumidifying
+            } else if (currentHum > targetHumAI + HUM_THRESHOLD) {
+                desiredHumAction = 'dehumidify';
+            } else if (currentHum < targetHumAI - HUM_THRESHOLD) {
+                desiredHumAction = 'humidify';
+            }
+
+            if (desiredHumAction !== lastHumActionSent) {
+                socket.emit('auto_control', { action: desiredHumAction });
+                lastHumActionSent = desiredHumAction;
+                console.log(`Auto Hum Control Action: ${desiredHumAction}`);
+                btnDehumidify.classList.toggle('active', desiredHumAction === 'dehumidify');
+                btnHumidify.classList.toggle('active', desiredHumAction === 'humidify');
+            }
+        }
+
+        // Start the AI control loop
+        setInterval(checkAndApplyAIControl, 500);
+
+        function handleControlButtonClick(event) {
+            const clickedButton = event.currentTarget;
+            if (clickedButton.disabled) return;
+
+            const group = clickedButton.dataset.group;
+            const action = clickedButton.dataset.action;
+            const isActive = clickedButton.classList.contains('active');
+
+            // Deactivate all buttons in the same group first
+            allControlButtons.forEach(btn => {
+                if (btn.dataset.group === group) {
+                    btn.classList.remove('active');
+                }
+            });
+
+            if (isActive) { // If it was active, it's now turned off (along with others in group)
+                console.log(`Manual Control OFF: ${action}`);
+                socket.emit('manual_control', { action: `${group}_off` }); // e.g., temp_off or hum_off
+                
+                if (group==="temp"){
+                    lastTempActionSent = "temp_off";
+                }else if (group==="hum"){
+                    lastHumActionSent = "hum_off";
+                }
+
+            } else { // If it was inactive, activate it
+                clickedButton.classList.add('active');
+                console.log(`Manual Control ON: ${action}`);
+                socket.emit('manual_control', { action: action });
+
+                if (group==="temp"){
+                    lastTempActionSent = action;
+                }else if (group==="hum"){
+                    lastHumActionSent = action;
+                }
+
+            }
+        }
+
+        allControlButtons.forEach(button => {
+            button.addEventListener('click', handleControlButtonClick);
+        });
+
+                // Event listener for the "Update me" button
+        requestUpdateBtn.addEventListener('click', function() {
+            const spinner = this.querySelector('.spinner-border-sm');
+            spinner.style.display = 'inline-block'; // Show spinner
+            this.disabled = true; // Disable button
+            let desc = "Current Temp: " + currentTemp + " celcius; Current Humidity: " + currentHum + " percent.";
+            desc += "Target temp: " + targetTempAI + " celcius; Target Humidity: " + targetHumAI + " percent.";
+            desc += "The latest temperature control is " + lastTempActionSent + ", latest humidity control is " + lastHumActionSent;
+            console.log("Emitting 'request_update'");
+            socket.emit('request_update',{data:desc});
+            timeStart = Date.now();
+        });
+
+
+        getAiRecommendationBtn.addEventListener('click', askAIRecommendation);
+        goodsTypeInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter' || event.keyCode === 13) { // Check for Enter key
+                event.preventDefault(); // Prevent default form submission if it were in a form
+                askAIRecommendation();
+            }
+        });
+
+        aiModeSwitch.addEventListener('change', function() {
+            if (this.checked) { // AI Mode ON      
+                speakout("Turning auto control mode ON.");         
+                console.log('AI Mode ON.');
+                envAIMode = true;
+            } else { // AI Mode OFF
+                console.log('AI Mode OFF.');
+                speakout("Turning off auto control.");  
+                envAIMode = false;
+                //aiTargetsDisplay.style.display = 'none';
+
+            }
+        });
+
+        // Manual control button listeners
+        btnCool.addEventListener('click', () => socket.emit('manual_control', { action: 'cool' }));
+        btnHeat.addEventListener('click', () => socket.emit('manual_control', { action: 'heat' }));
+        btnDehumidify.addEventListener('click', () => socket.emit('manual_control', { action: 'dehumidify' }));
+        btnHumidify.addEventListener('click', () => socket.emit('manual_control', { action: 'humidify' }));
+
+        // Socket listener for "received_update"
+        socket.on('received_update', function(data) {
+            const spinner = requestUpdateBtn.querySelector('.spinner-border-sm');
+            spinner.style.display = 'none'; // Hide spinner
+            requestUpdateBtn.disabled = false; // Enable button
+            timeEnd = Date.now();
+            console.log(`Received 'received_update' in ${timeEnd-timeStart} miliseconds, re-enabling button.`);
+            console.log(data.response)
+            speakout (data.response)
+            // You might want to add a small visual confirmation or update other UI elements here
+        });
+
+        // Listen for AI target updates from the backend
+        socket.on('target_temp_hum', function(data) {
+            if (aiModeSwitch.checked) { // Only update if AI mode is active
+                console.log('AI Targets Received:', data);
+                aiTargetTempElement.textContent = parseFloat(data.target_temp).toFixed(1);
+                aiTargetHumElement.textContent = parseFloat(data.target_hum).toFixed(1);
+            }
+        });
+
+
+        // --- Functions ---
+        function updateLastUpdated(element, timestamp) {
+            element.textContent = "Last Updated: " + timestamp;
+        }
+
+        function addDataToChart(chart, label, data) {
+            const MAX_POINTS = 20; // Show a reasonable number of points for trend
+            chart.data.labels.push(label);
+            chart.data.datasets[0].data.push(data);
+            if (chart.data.labels.length > MAX_POINTS) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+            }
+            chart.update('none'); // Use 'none' for smoother updates
+        }
+
+        // Variable to store the timeout ID for resetting the status
+        let statusResetTimeout = null;
+
+        function askAIRecommendation() {
+            const goodsType = goodsTypeInput.value.trim();
+            if (goodsType) {
+                socket.emit('transport_goods', { goods_type: goodsType });
+                console.log("Sent request to obtain AI recommendation.");
+            }else{
+                alert('Please enter the type of goods.');
+                aiTargetTempElement.textContent = '--'; // Reset display
+                aiTargetHumElement.textContent = '--';  // Reset display
+            }
+        }
+
+        function setAccessStatus(status, detailInfo = null) {
+             // Clear any existing timeout to prevent race conditions
+            if (statusResetTimeout) {
+                clearTimeout(statusResetTimeout);
+                statusResetTimeout = null;
+            }
+
+            let iconClass, text, detail, colorClass;
+
+            switch (status) {
+                case 'granted':
+                    iconClass = 'fas fa-lock-open';
+                    text = 'Access Granted';
+                    detail = detailInfo ? `Driver: ${detailInfo}` : 'Permitted Access';
+                    colorClass = 'status-granted';
+                    // Set timeout to automatically revert to 'locked' visually
+                    statusResetTimeout = setTimeout(() => {
+                        setAccessStatus('locked');
+                    }, AUTO_CLOSE_DELAY_MS);
+                    break;
+                case 'denied':
+                    iconClass = 'fas fa-ban';
+                    text = 'Access Denied';
+                    detail = detailInfo ? `ID: ${detailInfo}` : 'Unauthorized Scan';
+                    colorClass = 'status-denied';
+                     // Set timeout to revert to 'locked' after showing denied status
+                    statusResetTimeout = setTimeout(() => {
+                        setAccessStatus('locked');
+                    }, DENIED_STATUS_DISPLAY_MS);
+                    break;
+                case 'locked':
+                default:
+                    iconClass = 'fas fa-lock';
+                    text = 'Locked';
+                    detail = 'Scan NFC tag for access';
+                    colorClass = 'status-locked';
+                    break;
+            }
+
+            //accessIconElement.innerHTML = `<i class="${iconClass}"></i>`;
+            //accessIconElement.className = `status-icon-display ${colorClass}`; // Apply color class
+            //accessTextElement.textContent = text;
+            //accessTextElement.className = `status-text ${colorClass}`; // Apply color class
+            //accessDetailElement.textContent = detail;
+        }
+
+        function addNfcLogEntry(uid, granted) {
+             // Clear placeholder if it exists
+            const placeholder = nfcListElement.querySelector('li[style*="justify-content: center"]');
+            if (placeholder) {
+                nfcListElement.innerHTML = '';
+            }
+
+            const listItem = document.createElement('li');
+            const timestamp = new Date().toLocaleTimeString(); // Time only for log brevity
+            const statusIconHtml = granted
+                ? '<i class="fas fa-check-circle text-success status-icon" title="Access Granted"></i>'
+                : '<i class="fas fa-times-circle text-danger status-icon" title="Access Denied"></i>';
+
+            listItem.innerHTML = `
+                <div>
+                    <span class="timestamp">${timestamp}</span>
+                    <span class="driver-id">${uid}</span>
+                </div>
+                ${statusIconHtml}
+            `;
+            nfcListElement.prepend(listItem); // Add new entry to the top
+
+            // Limit log size
+            const MAX_LOGS = 15; // Keep a reasonable number of log entries visible
+            while (nfcListElement.childNodes.length > MAX_LOGS) {
+                nfcListElement.removeChild(nfcListElement.lastChild);
+            }
+        }
+
+        function hideLoginModal(){
+            isUnlocked = true; // Set flag to prevent multiple unlocks              
+            // Update modal text and icon for unlock animation
+            loginStatusText.textContent = "Access Authorized";
+            loginIcon.innerHTML = '<i class="fas fa-unlock"></i>'; // Change to unlock icon
+            loginIcon.style.color = '#28a745'; // Green color for success
+
+            // Add the unlocking class to trigger CSS animations
+            loginModalOverlay.classList.add('unlocking');
+
+            // Wait for animation to finish, then hide modal completely
+            setTimeout(() => {
+                loginModalOverlay.classList.add('login-modal-hidden');
+                console.log("Login modal hidden.");
+            }, UNLOCK_ANIMATION_DURATION_MS); // Use the defined duration
+
+        }
+
+        function speakout (tts){
+            speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(tts);
+            if (!target_voice){
+                speechSynthesis.getVoices().forEach(voice => {
+                    if (voice.name === target_voice_name){
+                        target_voice = voice;
+                    }
+                });
+            }
+            utterance.voice = target_voice; 
+            speechSynthesis.speak(utterance);
+        }
+
+        // --- Socket.IO Event Handlers ---
+        socket.on('update_sensor', function(data) {
+            const { sensor, value } = data;
+            const timestamp = new Date().toLocaleTimeString();
+
+            if (sensor === 'temperature') {
+                currentTemp = value;
+                currentTempElement.textContent = parseFloat(value).toFixed(1);
+                addDataToChart(tempChart, timestamp, value);
+                updateLastUpdated(tempUpdatedElement, timestamp);
+            } else if (sensor === 'humidity') {
+                currentHum = value;
+                currentHumElement.textContent = parseFloat(value).toFixed(1);
+                addDataToChart(humChart, timestamp, value);
+                updateLastUpdated(humUpdatedElement, timestamp);
+            }
+            // No 'distance' sensor handling needed now
+        });
+
+        socket.on('ai_recommendation', function(data) {
+            const error_value = data.error;
+            console.log("AI recommendation is received with error value " + error_value);
+            if (error_value==0){
+                targetTempAI = data.temp;
+                targetHumAI = data.hum;
+                console.log(targetTempAI + ", " + targetHumAI);
+                speakout ("AI recommending temperature of " + targetTempAI + " celcius, and humidity of " + targetHumAI + " percent.")
+                aiTargetTempElement.textContent = parseFloat(targetTempAI).toFixed(1);
+                aiTargetHumElement.textContent = parseFloat(targetHumAI).toFixed(1);
+            }else{
+                console.log(data.error_msg);
+                aiTargetTempElement.textContent = '--';
+                aiTargetHumElement.textContent = '--';
+                targetTempAI = null;
+                targetHumAI = null;
+            }
+        });
+
+        // Listen for NFC updates from the backend
+        socket.on('update_nfc', function(data) {
+            // Expecting data = { uid: "some_id", granted: true/false }
+            console.log("NFC Update Received:" +  data  + "; type: "+ typeof(data)); // For debugging
+            
+            const uid = data;
+            let granted = (uid === DRIVER_1_UID);
+            
+            addNfcLogEntry(uid, granted); // Log every scan attempt
+
+            // --- Login Modal Logic ---
+            if (!isUnlocked && granted) {
+                console.log("Login Authorized:", uid);
+                // Now also update the main dashboard access status
+                setAccessStatus('granted', uid);
+                addNfcLogEntry(uid, true); // Log the successful scan
+                hideLoginModal();
+
+            } else if (!isUnlocked && !granted) {
+                // Optional: Provide feedback in the login modal for denied scan
+                console.log("Login Denied:", uid);
+                loginStatusText.textContent = "Access Denied";
+                loginIcon.innerHTML = '<i class="fas fa-ban"></i>'; // Ban icon
+                loginIcon.style.color = '#dc3545'; // Red color for denial
+
+                // Briefly show denied status, then revert
+                setTimeout(() => {
+                    loginStatusText.textContent = "Awaiting Driver Scan";
+                    loginIcon.innerHTML = '<i class="fas fa-lock"></i>'; // Back to lock
+                    loginIcon.style.color = '#3498db'; // Back to blue
+                }, DENIED_STATUS_DISPLAY_MS); // Show denial for a few seconds
+
+                // Also log the denied attempt on the main dashboard log
+                 addNfcLogEntry(uid, false);
+                 setAccessStatus('denied', uid); // Update main dashboard status too
+
+            } else if (isUnlocked) {
+                 // If already unlocked, just log the scan and update status normally
+                 console.log(`Scan received while unlocked: ${uid}, Granted: ${granted}`);
+                 addNfcLogEntry(uid, granted);
+                 setAccessStatus(granted ? 'granted' : 'denied', uid);
+            }
+        });
+
+        // --- Initial State ---
+        // Set initial access status on page load
+        setAccessStatus('locked');
+
+        // Optional: Request initial sensor data on connect if needed
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            // Reset unlock status if connection is re-established
+            isUnlocked = false;
+            // Ensure modal is visible if it was hidden (e.g., page refresh after unlock)
+            if (loginModalOverlay.classList.contains('login-modal-hidden')) {
+                 loginModalOverlay.classList.remove('login-modal-hidden');
+                 loginModalOverlay.classList.remove('unlocking');
+                 loginStatusText.textContent = "Awaiting Driver Scan";
+                 loginIcon.innerHTML = '<i class="fas fa-lock"></i>';
+                 loginIcon.style.color = '#3498db';
+            }
+            // Optional: Request initial sensor data
+            // socket.emit('request_initial_data');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            // Optionally update UI to indicate disconnection
+        });
+
+    // --- Draggable Actuator Knob Control ---
+    if (actuatorKnob && actuatorKnobPointer && actuatorAngleDisplay) {
+        let isDraggingKnob = false;
+        let currentKnobAngle = 0; // Store the current angle
+
+        const updateKnobVisuals = (angle) => {
+            // Clamp angle between 0 and 180 (or your desired range)
+            angle = Math.max(0, Math.min(180, angle));
+            currentKnobAngle = Math.round(angle);
+            actuatorKnobPointer.style.transform = `translateX(-50%) rotate(${currentKnobAngle}deg)`;
+            actuatorAngleDisplay.textContent = currentKnobAngle;
+        };
+
+        const handleKnobMove = (event) => {
+            if (!isDraggingKnob) return;
+
+            const knobRect = actuatorKnob.getBoundingClientRect();
+            const knobCenterX = knobRect.left + knobRect.width / 2;
+            const knobCenterY = knobRect.top + knobRect.height / 2;
+
+            const clientX = event.clientX || (event.touches && event.touches[0].clientX);
+            const clientY = event.clientY || (event.touches && event.touches[0].clientY);
+
+            if (clientX === undefined || clientY === undefined) return;
+
+            const deltaX = clientX - knobCenterX;
+            const deltaY = clientY - knobCenterY;
+            
+            // Calculate angle in radians, then convert to degrees
+            // atan2 gives angle from -PI to PI. We need to adjust.
+            // 0 degrees is typically 'up' or 'right'. Our pointer starts at 0deg pointing up.
+            // Let's adjust so 0 degrees is pointing upwards (like a typical servo)
+            let angleRad = Math.atan2(deltaX, -deltaY); // -deltaY because Y increases downwards
+            let angleDeg = angleRad * (180 / Math.PI);
+
+            // Normalize angle to be 0-360, then we can clamp to 0-180 for the servo
+            if (angleDeg < 0) {
+                angleDeg += 360;
+            }
+            // For a typical 0-180 servo, if 0 is up, then we might want to adjust the range.
+            // The current setup with rotate(Xdeg) makes 0deg point upwards.
+            // Let's assume the visual 0deg is what we want as 0 for the actuator.
+            updateKnobVisuals(angleDeg);
+        };
+
+        actuatorKnob.addEventListener('mousedown', (event) => {
+            isDraggingKnob = true;
+            document.addEventListener('mousemove', handleKnobMove);
+            document.addEventListener('mouseup', () => {
+                isDraggingKnob = false;
+                document.removeEventListener('mousemove', handleKnobMove);
+                console.log(`Actuator Angle set to: ${currentKnobAngle}°`);
+                socket.emit('servoControl', {currentKnobAngle});
+            }, { once: true }); // Remove mouseup listener after it fires once
+        });
+
+        // Initialize knob position if needed (e.g., to 0 degrees)
+        updateKnobVisuals(0);
+        }
+
+    </script>
+
+</body>
+</html>
